@@ -17,7 +17,7 @@ from nectar.request import DownloadRequest
 from pulp.plugins.util import verification
 
 from pulp_rpm.plugins.importers.yum import utils
-from pulp_rpm.plugins.importers.yum.parse.rpm import change_location_tag
+from pulp_rpm.plugins.importers.yum.parse.rpm import primary_xml_snippet_to_repodata
 from pulp_rpm.plugins.importers.yum.repomd import filelists, nectar_factory, other
 from pulp_rpm.plugins.importers.yum.repomd.packages import package_list_generator
 
@@ -321,7 +321,7 @@ class MetadataFiles(object):
 
     def add_repodata(self, model):
         """
-        Given a model, add the "repodata" attribute to it (which includes raw
+        Given a model, add the "repodata" attribute to it (which includes template
         XML used for publishing), and add the "files" and "changelog" attributes
         based on data obtained in the raw XML snippets.
 
@@ -343,8 +343,7 @@ class MetadataFiles(object):
             unit_key, items = process_func(element)
             setattr(model, metadata_key, items)
 
-        raw_xml = model.raw_xml
-        model.repodata['primary'] = change_location_tag(raw_xml, model.filename)
+        model.repodata['primary'] = primary_xml_snippet_to_repodata(model.raw_xml, model.filename)
 
 
 def process_repomd_data_element(data_element):

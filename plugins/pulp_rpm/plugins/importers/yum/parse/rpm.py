@@ -36,7 +36,7 @@ def get_package_xml(pkg_path, sumtype=verification.TYPE_SHA256):
         return {}
     # RHEL6 createrepo throws a ValueError if _cachedir is not set
     po._cachedir = None
-    primary_xml_snippet = change_location_tag(po.xml_dump_primary_metadata(), pkg_path)
+    primary_xml_snippet = _change_location_tag(po.xml_dump_primary_metadata(), pkg_path)
     metadata = {
         'primary': primary_xml_snippet,
         'filelists': po.xml_dump_filelists_metadata(),
@@ -45,26 +45,23 @@ def get_package_xml(pkg_path, sumtype=verification.TYPE_SHA256):
     return metadata
 
 
-def change_location_tag(primary_xml_snippet, relpath):
+def primary_xml_snippet_to_repodata(primary_xml_snippet, relpath):
     """
-    Transform the <location> tag to strip out leading directories so it
-    puts all rpms in same the directory as 'repodata'
+    Transform the raw xml for a package to the form that should be stored on the RPM unit's repodata
+    attribute. The location tag must be altered (see _change_location_tag()) and the checksum must
+    be templatized.
 
     :param primary_xml_snippet: snippet of primary xml text for a single package
     :type  primary_xml_snippet: str
+    :param relpath:             Package's 'relativepath'
+    :type  relpath:             str
 
-    :param relpath: Package's 'relativepath'
-    :type  relpath: str
+    :return:                    An XML snippet suitable to be stored in an RPM unit's repodata
+                                attribute.
+    :rtype:                     basestring
     """
-
-    basename = os.path.basename(relpath)
-    start_index = primary_xml_snippet.find("<location ")
-    end_index = primary_xml_snippet.find("/>", start_index) + 2  # adjust to end of closing tag
-
-    first_portion = string_to_unicode(primary_xml_snippet[:start_index])
-    end_portion = string_to_unicode(primary_xml_snippet[end_index:])
-    location = string_to_unicode("""<location href="%s"/>""" % (basename))
-    return first_portion + location + end_portion
+    primary_xml_snippet = _change_location_tag(primary_xml_snippet, relpath)
+    return _templatize_checksum(primary_xml_snippet)
 
 
 ENCODING_LIST = ('utf8', 'iso-8859-1')
@@ -90,3 +87,39 @@ def string_to_unicode(data):
         except UnicodeError:
             # try others
             continue
+
+
+def _change_location_tag(primary_xml_snippet, relpath):
+    """
+    Transform the <location> tag to strip out leading directories so it
+    puts all rpms in same the directory as 'repodata'
+
+    :param primary_xml_snippet: snippet of primary xml text for a single package
+    :type  primary_xml_snippet: str
+
+    :param relpath: Package's 'relativepath'
+    :type  relpath: str
+    """
+    basename = os.path.basename(relpath)
+    start_index = primary_xml_snippet.find("<location ")
+    end_index = primary_xml_snippet.find("/>", start_index) + 2  # adjust to end of closing tag
+
+    first_portion = string_to_unicode(primary_xml_snippet[:start_index])
+    end_portion = string_to_unicode(primary_xml_snippet[end_index:])
+    location = string_to_unicode("""<location href="%s"/>""" % (basename))
+    return first_portion + location + end_portion
+
+
+def _templatize_checksum(primary_xml_snippet):
+    """
+    Replace the checksum and checksum type in the given xml snippet with Python template syntax,
+    allowing the template to be later rendered with a different checksum and checksum type. The
+    template keys will be checksum and checksum_type.
+
+    :param primary_xml_snippet: snippet of primary xml text for a single package
+    :type  primary_xml_snippet: str
+    :return:                    The given xml, with the checksum and checksum type replaced with
+                                Python template syntax.
+    :rtype:                     basestring
+    """
+    return primary_xml_snippet
